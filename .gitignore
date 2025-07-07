@@ -1,4 +1,20 @@
+# ==== 大模型 & 数据 ====
 models/
+data/samples/*.mp4
+data/samples/*.gguf
 *.gguf
+*.gguf*
+*.ggufsha256
+*.safetensors
+*.ckpt
 *.plan
 *.onnx
+
+# ==== Python / Conda ====
+env/
+__pycache__/
+*.py[cod]
+
+# ==== VSCode / OS ====
+.vscode/
+.DS_Store

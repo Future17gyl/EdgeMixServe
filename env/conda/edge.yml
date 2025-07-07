@@ -1,0 +1,20 @@
+name: edge
+channels:
+  - nvidia
+  - pytorch
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pytorch=2.3
+  - torchvision
+  - torchaudio
+  - pytorch-cuda=12.1   # ★ GPU 关键包
+  - cudnn
+  - numpy
+  - sentencepiece
+  - tqdm
+  - git-lfs
+  - pip
+  - pip:
+      - transformers==4.41
+      - accelerate
