@@ -1,17 +1,19 @@
 # ==== 大模型 & 数据 ====
 models/
+!models/**/*.md
+
 data/samples/*.mp4
-data/samples/*.gguf
-*.gguf
+
 *.gguf*
-*.ggufsha256
 *.safetensors
 *.ckpt
 *.plan
 *.onnx
 
 # ==== Python / Conda ====
-env/
+env/                   # 先忽略整目录
+!env/conda/edge.yml    # 然后逐字保留这一个文件
+
 __pycache__/
 *.py[cod]
 
