@@ -1,43 +1,36 @@
 #!/usr/bin/env bash
 # ------------------------------------------------------------------
-# Video → YOLO-11 实时检测（逐秒聚合）
-# 权重统一存放在 models/YOLO/ 下；若 <1 MB 则视为残缺并重新下载
+# End-to-End: YOLO-11 (medium) 实时检测 → 逐秒聚合
+#   • 自动检查/下载权重           models/YOLO/
+#   • GPU 监控 (nvidia-smi dmon)  logs/<STAMP>/
+#   • 资源统计 (/usr/bin/time -v)
 # ------------------------------------------------------------------
 set -eo pipefail
 
-###################### 0. 解析入参 #################################
+# ============================ 0. 参数 =============================
 VIDEO_IN=${1:-data/samples/video_02_h264_city.mp4}
 CONF=${2:-0.25}                           # 置信度阈值
-MODEL_DIR=models/YOLO
-MODEL=${3:-$MODEL_DIR/yolo11m.pt}         # 默认 YOLO-11-M
+YOLO_DIR=models/YOLO
+YOLO_FILE=yolo11m.pt
+YOLO_PATH=$YOLO_DIR/$YOLO_FILE
+YOLO_REPO=https://huggingface.co/Ultralytics/YOLO11/resolve/main/$YOLO_FILE
 
+# 校验输入视频
 VIDEO_ABS=$(realpath "$VIDEO_IN")
 [[ -f $VIDEO_ABS ]] || { echo "[ERR] 视频文件不存在: $VIDEO_ABS"; exit 1; }
 
-################ 权重检查 & 自动下载 (≥1 MB 视为完整) ###############
-MIN_SIZE=1048576  # 1 MB
-
-download_weight () {
-  mkdir -p "$MODEL_DIR"
-  echo "[INFO] 正在下载 $MODEL ..."
-  wget -q --show-progress -O "$MODEL" \
-       https://huggingface.co/Ultralytics/YOLO11/resolve/main/$(basename "$MODEL")
-}
-
-need_redownload=true
-if [[ -f $MODEL ]]; then
-  size=$(stat -c%s "$MODEL" 2>/dev/null || echo 0)
-  if (( size >= MIN_SIZE )); then
-    need_redownload=false
-  else
-    echo "[WARN] 检测到残缺权重文件（大小 $size 字节），重新下载"
-    rm -f "$MODEL"
-  fi
+# ===================== 1. YOLO 权重检查/下载 ======================
+if [[ ! -s $YOLO_PATH ]]; then                 # -s ⇒ 文件存在且 >0B
+  echo "[INFO] YOLO 权重缺失/为空，开始下载 ..."
+  mkdir -p "$YOLO_DIR"
+  wget -q --show-progress -O "$YOLO_PATH" "$YOLO_REPO" \
+    || { echo "[ERR] YOLO 权重下载失败"; exit 1; }
 fi
-$need_redownload && download_weight || true
-MODEL_PATH=$(realpath "$MODEL")
 
-###################### 1. 激活 Conda ################################
+# 标准化绝对路径
+YOLO_PATH=$(realpath "$YOLO_PATH")
+
+# ======================== 2. 环境准备 =============================
 # shellcheck disable=SC1091
 source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate edge
@@ -45,22 +38,21 @@ conda activate edge
 PROJECT_ROOT=$(cd "$(dirname "$0")/.." && pwd)
 export PYTHONPATH="$PROJECT_ROOT/src:$PYTHONPATH"
 
-###################### 2. 日志目录 & GPU 监控 #######################
+# ==================== 3. 日志 & GPU 监控 ==========================
 STAMP=$(date +%Y%m%d_%H%M%S)
-LOGDIR="logs/$STAMP"; mkdir -p "$LOGDIR"
-
+LOGDIR=logs/$STAMP; mkdir -p "$LOGDIR"
 nvidia-smi dmon -s pucvmet -o TD -f "$LOGDIR/gpu_dmon.csv" &
 DMON_PID=$!
 
-###################### 3. 实时检测 & 资源统计 #######################
+# =================== 4. YOLO 实时检测 & 计时 ======================
 echo "[YOLO-11M] detecting objects in $VIDEO_ABS ..."
 /usr/bin/time -v \
   python "$PROJECT_ROOT/src/extractor/stream_detect.py" \
     --source "$VIDEO_ABS" \
-    --model  "$MODEL_PATH" \
+    --model  "$YOLO_PATH" \
     --conf   "$CONF" \
   2>&1 | tee "$LOGDIR/run.log"
 
-###################### 4. 收尾 ######################################
+# ======================== 5. 收尾 ================================
 kill "$DMON_PID"
 echo "日志已保存至 $LOGDIR"

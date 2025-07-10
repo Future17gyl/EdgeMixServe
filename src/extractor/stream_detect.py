@@ -5,13 +5,13 @@ Usage: python -m extractor.stream_detect --source path/to/video.mp4
 """
 import argparse, time, logging, pathlib, json, cv2
 from collections import Counter, defaultdict
-from ultralytics import YOLO      # pip install ultralytics
+from ultralytics import YOLO
 from datetime import datetime
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--source', required=True, help='video file or rtsp url')
-    ap.add_argument('--model', default='yolov12n.pt')   # or yolov9n.pt
+    ap.add_argument('--model', default='yolo11m.pt')
     ap.add_argument('--conf',  type=float, default=0.25)
     args = ap.parse_args()
 
