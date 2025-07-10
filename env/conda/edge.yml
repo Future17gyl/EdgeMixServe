@@ -15,6 +15,9 @@ dependencies:
   - tqdm
   - git-lfs
   - pip
+  - ultralytics=8.3.163   # 2025-07-08 最新版
+  - opencv-python=4.12.*
+  - pynvml                # 如需显存细粒度监控
   - pip:
       - transformers==4.41
       - accelerate

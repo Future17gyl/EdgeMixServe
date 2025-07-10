@@ -20,3 +20,11 @@ __pycache__/
 # ==== VSCode / OS ====
 .vscode/
 .DS_Store
+
+# 运行产物
+logs/
+data/samples/*.srt
+data/samples/*.summary.txt
+# Conda lock / build cache
+env/conda/*.lock
+
