@@ -15,9 +15,23 @@ YOLO_FILE=yolo11m.pt
 YOLO_PATH=$YOLO_DIR/$YOLO_FILE
 YOLO_REPO=https://huggingface.co/Ultralytics/YOLO11/resolve/main/$YOLO_FILE
 
-# 校验输入视频
+# 校验输入视频是否存在，若不存在则自动下载默认视频
 VIDEO_ABS=$(realpath "$VIDEO_IN")
-[[ -f $VIDEO_ABS ]] || { echo "[ERR] 视频文件不存在: $VIDEO_ABS"; exit 1; }
+if [[ ! -f $VIDEO_ABS ]]; then
+  echo "[WARN] 输入视频文件不存在: $VIDEO_ABS"
+  echo "[INFO] 正在下载默认示例视频: video_02_h264_city.mp4"
+  mkdir -p data/samples
+  yt-dlp \
+    --cookies "$HOME/workspace/tools/youtube.com_cookies.txt" \
+    -f "bv*[vcodec^=avc]+ba[ext=m4a]/b[ext=mp4][vcodec^=avc]" \
+    -o "$HOME/workspace/EdgeMixServe/data/samples/video_02_h264_city.mp4" \
+    "https://www.youtube.com/watch?v=bIo75bjq70M" || {
+      echo "[ERR] 默认视频下载失败"; exit 1;
+    }
+  VIDEO_IN="data/samples/video_02_h264_city.mp4"
+  VIDEO_ABS=$(realpath "$VIDEO_IN")
+  echo "[INFO] 默认视频下载完成: $VIDEO_ABS"
+fi
 
 # ===================== 1. YOLO 权重检查/下载 ======================
 if [[ ! -s $YOLO_PATH ]]; then                 # -s ⇒ 文件存在且 >0B
