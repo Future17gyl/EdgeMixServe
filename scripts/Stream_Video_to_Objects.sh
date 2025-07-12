@@ -16,7 +16,6 @@ YOLO_PATH=$YOLO_DIR/$YOLO_FILE
 YOLO_REPO=https://huggingface.co/Ultralytics/YOLO11/resolve/main/$YOLO_FILE
 
 # 校验输入视频是否存在，若不存在则自动下载默认视频
-VIDEO_ABS=$(realpath "$VIDEO_IN")
 if [[ ! -f $VIDEO_ABS ]]; then
   echo "[WARN] 输入视频文件不存在: $VIDEO_ABS"
   echo "[INFO] 正在下载默认示例视频: video_02_h264_city.mp4"
@@ -33,6 +32,8 @@ if [[ ! -f $VIDEO_ABS ]]; then
   echo "[INFO] 默认视频下载完成: $VIDEO_ABS"
 fi
 
+VIDEO_ABS=$(realpath "$VIDEO_IN")
+
 # ===================== 1. YOLO 权重检查/下载 ======================
 if [[ ! -s $YOLO_PATH ]]; then                 # -s ⇒ 文件存在且 >0B
   echo "[INFO] YOLO 权重缺失/为空，开始下载 ..."
@@ -44,10 +45,25 @@ fi
 # 标准化绝对路径
 YOLO_PATH=$(realpath "$YOLO_PATH")
 
-# ======================== 2. 环境准备 =============================
+# =========================== 2. 环境准备 ===========================
 # shellcheck disable=SC1091
 source "$(conda info --base)/etc/profile.d/conda.sh"
-conda activate edge
+
+# 根据主机名选择 Conda 环境
+HOSTNAME=$(hostname) # 获取当前主机名
+
+if [[ "$HOSTNAME" == "orin" ]]; then
+    CONDA_ENV_NAME="edge_orin"
+else
+    # 如果不是 Orin，就使用默认的 "edge" 环境
+    echo "[INFO] 非 Orin 主机，使用默认 Conda 环境 'edge'。"
+    CONDA_ENV_NAME="edge"
+fi
+
+conda activate "$CONDA_ENV_NAME" || {
+    echo "[ERR] 激活 Conda 环境 '$CONDA_ENV_NAME' 失败！请检查环境是否存在或名称是否正确。"
+    exit 1
+}
 
 PROJECT_ROOT=$(cd "$(dirname "$0")/.." && pwd)
 export PYTHONPATH="$PROJECT_ROOT/src:$PYTHONPATH"

@@ -26,8 +26,7 @@ STAMP=$(date +%Y%m%d_%H%M%S)
 LOGDIR=logs/$STAMP
 
 # 校验视频存在
-VIDEO_ABS=$(realpath "$VIDEO_IN")
-if [[ ! -f $VIDEO_ABS ]]; then
+if [[ ! -f $VIDEO_IN ]]; then
   echo "[WARN] 视频文件不存在: $VIDEO_ABS"
   echo "[INFO] 正在尝试下载默认视频: video_01_h264_speech.mp4"
   mkdir -p data/samples
@@ -42,6 +41,9 @@ if [[ ! -f $VIDEO_ABS ]]; then
   VIDEO_ABS=$(realpath "$VIDEO_IN")
   echo "[INFO] 默认视频下载完成: $VIDEO_ABS"
 fi
+
+VIDEO_ABS=$(realpath "$VIDEO_IN")
+
 
 # ====================== 1. Whisper 权重检查/下载 ====================
 need_dl=false
@@ -71,17 +73,45 @@ fi
 # =========================== 3. 环境准备 ===========================
 # shellcheck disable=SC1091
 source "$(conda info --base)/etc/profile.d/conda.sh"
-conda activate edge
+
+# 根据主机名选择 Conda 环境
+HOSTNAME=$(hostname) # 获取当前主机名
+
+if [[ "$HOSTNAME" == "orin" ]]; then
+    CONDA_ENV_NAME="edge_orin"
+else
+    # 如果不是 Orin，就使用默认的 "edge" 环境
+    echo "[INFO] 非 Orin 主机，使用默认 Conda 环境 'edge'。"
+    CONDA_ENV_NAME="edge"
+fi
+
+conda activate "$CONDA_ENV_NAME" || {
+    echo "[ERR] 激活 Conda 环境 '$CONDA_ENV_NAME' 失败！请检查环境是否存在或名称是否正确。"
+    exit 1
+}
 
 PROJECT_ROOT=$(cd "$(dirname "$0")/.." && pwd)
 export PYTHONPATH="$PROJECT_ROOT/src:$PYTHONPATH"
 
-# 日志 & GPU 监控
+# ==================== 4. 日志 & GPU 监控 ==========================
 mkdir -p "$LOGDIR"
-nvidia-smi dmon -s pucvmet -o TD -f "$LOGDIR/gpu_dmon.csv" &
-DMON_PID=$!
 
-# ============================ 4. Whisper ===========================
+# 检查 nvidia-smi 命令是否存在
+# command -v nvidia-smi 会返回命令的路径，如果找不到则返回非零退出状态码
+if command -v nvidia-smi &> /dev/null; then
+    echo "[INFO] 发现 nvidia-smi，启动 GPU 监控 ..."
+    # 注意：使用完整路径可以更稳健，或者如果知道它在 PATH 中，也可以直接用 nvidia-smi
+    # 这里我们假设它通过 command -v 找到了，就在 PATH 里
+    nvidia-smi dmon -s pucvmet -o TD -f "$LOGDIR/gpu_dmon.csv" &
+    DMON_PID=$!
+    # 记录 DMON_PID，以便稍后 kill
+    echo "[INFO] GPU 监控 PID: $DMON_PID"
+else
+    echo "[WARN] 未发现 nvidia-smi，跳过 GPU 监控。"
+    DMON_PID="" # 如果没有启动监控，将 DMON_PID 设为空，以便后续判断
+fi
+
+# ============================ 5. Whisper ===========================
 echo "[Whisper] transcribing $VIDEO_ABS ..."
 /usr/bin/time -v \
   python "$PROJECT_ROOT/src/caption/whisper_run.py" \
@@ -92,7 +122,7 @@ echo "[Whisper] transcribing $VIDEO_ABS ..."
 SRT=${VIDEO_ABS%.*}.srt
 [[ -f $SRT ]] || { echo "[ERR] Whisper 未生成字幕"; kill "$DMON_PID"; exit 1; }
 
-# ============================== 5. Llama ==========================
+# ============================== 6. Llama ==========================
 echo "[Llama-3] summarising $SRT ..."
 /usr/bin/time -v \
   python "$PROJECT_ROOT/src/summarizer/stream_notes.py" \
@@ -103,6 +133,6 @@ echo "[Llama-3] summarising $SRT ..."
 
 echo "[DONE] results written to ${SRT%.srt}.summary.txt"
 
-# ============================== 6. 收尾 ===========================
+# ============================== 7. 收尾 ===========================
 kill "$DMON_PID"
 echo "全部日志保存在: $LOGDIR"
