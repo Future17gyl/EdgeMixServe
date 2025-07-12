@@ -1,0 +1,14 @@
+name: edge_orin
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pip
+  - pip:
+      - ultralytics==8.3.163
+      - opencv-python-headless==4.9.0.80
+      - numpy
+      # Jetson 上的 faster-whisper 需要 aarch64 编译版
+      - ctranslate2==4.5.0+cuda
+      - faster-whisper==1.0.1
+YAML
